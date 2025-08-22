@@ -4,6 +4,7 @@ from openai import OpenAI
 from vector_store.retriever import BookRetriever
 from tools.book_summary_tool import get_summary_by_title
 from tools.translation_tool import detect_language, translate
+from tools.language_filter_tool import is_offensive
 
 # Setup OpenAI
 load_dotenv()
@@ -23,6 +24,11 @@ def is_question_about_books(text: str) -> bool:
 
 
 def chat_with_llm(user_input: str):
+    if is_offensive(user_input):
+        msg = "Your message contains inappropriate language. Please rephrase politely."
+        lang = detect_language(user_input)
+        return translate(msg, target_lang=lang)
+    
     # 0. Detectăm limba inițială
     detected_lang = detect_language(user_input)
 
