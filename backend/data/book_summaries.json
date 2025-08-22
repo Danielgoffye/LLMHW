@@ -1,0 +1,55 @@
+[
+  {
+    "title": "1984",
+    "summary": "A dystopian society under constant surveillance. Themes: control, rebellion, truth."
+  },
+  {
+    "title": "The Hobbit",
+    "summary": "A hobbit embarks on an unexpected journey to reclaim a treasure guarded by a dragon. Themes: adventure, courage, friendship."
+  },
+  {
+    "title": "To Kill a Mockingbird",
+    "summary": "A young girl observes racial injustice in the American South. Themes: justice, empathy, morality."
+  },
+  {
+    "title": "Brave New World",
+    "summary": "A futuristic society focused on pleasure and control through conditioning. Themes: conformity, technology, identity."
+  },
+  {
+    "title": "The Catcher in the Rye",
+    "summary": "A teenager wanders New York City while struggling with alienation and loss. Themes: adolescence, identity, isolation."
+  },
+  {
+    "title": "Frankenstein",
+    "summary": "A scientist creates a sentient creature, leading to tragedy. Themes: creation, responsibility, rejection."
+  },
+  {
+    "title": "The Great Gatsby",
+    "summary": "A mysterious millionaire throws lavish parties chasing a lost love. Themes: wealth, illusion, the American dream."
+  },
+  {
+    "title": "The Chronicles of Narnia",
+    "summary": "Children enter a magical world and fight against evil. Themes: fantasy, good vs. evil, faith."
+  },
+  {
+    "title": "Harry Potter and the Philosopher's Stone",
+    "summary": "A boy discovers he's a wizard and attends a magical school. Themes: friendship, magic, bravery."
+  },
+  {
+    "title": "Animal Farm",
+    "summary": "Animals rebel against humans but end up replicating their oppression. Themes: power, corruption, revolution."
+  },
+  {
+    "title": "Moby-Dick",
+    "summary": "A captain obsesses over a white whale. Themes: obsession, revenge, fate."
+  },
+  {
+    "title": "Jane Eyre",
+    "summary": "An orphaned girl faces hardship and finds love. Themes: independence, morality, feminism."
+  },
+  {
+    "title": "Lord of the Flies",
+    "summary": "Boys stranded on an island descend into savagery. Themes: civilization, leadership, human nature."
+  }
+]
+
