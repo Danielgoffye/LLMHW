@@ -3,3 +3,5 @@ python-dotenv
 chromadb
 tiktoken
 langdetect
+gTTS
+playsound==1.2.2
