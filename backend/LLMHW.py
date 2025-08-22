@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from vector_store.retriever import BookRetriever
 from tools.book_summary_tool import get_summary_by_title
+from tools.translation_tool import detect_language, translate
 
 # Setup OpenAI
 load_dotenv()
@@ -22,31 +23,50 @@ def is_question_about_books(text: str) -> bool:
 
 
 def chat_with_llm(user_input: str):
-    if not is_question_about_books(user_input):
-        return "I'm here to help with book recommendations. Please ask something related to stories, books, or themes."
+    # 0. Detectăm limba inițială
+    detected_lang = detect_language(user_input)
 
-    # 1. Caută cea mai bună potrivire în vector store
-    matches = retriever.query(user_input, top_k=1)
+    # 1. Verificare semantică simplă (doar pentru limbile cunoscute)
+    if detected_lang == "en":
+        is_valid = is_question_about_books(user_input)
+    else:
+        translated_input = translate(user_input, target_lang="en", source_lang=detected_lang)
+        is_valid = is_question_about_books(translated_input)
+
+    if not is_valid:
+        msg = "Please ask something related to books or stories."
+        return translate(msg, target_lang=detected_lang)
+
+    # 2. Traducem în engleză (dacă e cazul)
+    english_input = user_input if detected_lang == "en" else translate(user_input, target_lang="en", source_lang=detected_lang)
+
+    # 3. RAG – căutăm potrivirea semantică
+    matches = retriever.query(english_input, top_k=1)
     if not matches:
-        return "Sorry, I couldn't find any relevant books."
+        msg = "Sorry, I couldn't find any relevant books in my library."
+        return translate(msg, target_lang=detected_lang)
 
     top_match = matches[0]
+    if top_match.distance > 1.5:
+        msg = "Sorry, I couldn't find any book that matches your request."
+        return translate(msg, target_lang=detected_lang)
+
     title = top_match.title
     summary = top_match.summary
 
-    # 2. Pregătește promptul pentru LLM
+    # 4. LLM – generăm răspuns conversațional în engleză
     system_prompt = (
-        "You are an intelligent assistant that recommends books to users "
-        "based on their interests. You will use the provided context to recommend a book."
+        "You are an intelligent assistant that recommends books based on user interests. "
+        "Use the provided context to give a helpful and natural recommendation."
     )
 
-    user_prompt = f"""User asked: "{user_input}"
+    user_prompt = f"""User asked: "{english_input}"
 
-Use this context to answer: "{summary}"
+Context: "{summary}"
 
-Respond in a friendly and helpful tone. Mention the book title if relevant."""
+Respond with a friendly book suggestion. Mention the book title if relevant.
+"""
 
-    # 3. Trimite către LLM (gpt-4o)
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -56,16 +76,19 @@ Respond in a friendly and helpful tone. Mention the book title if relevant."""
         temperature=0.7
     )
 
-    main_answer = response.choices[0].message.content.strip()
+    main_answer_en = response.choices[0].message.content.strip()
 
-    # 4. Apelează local tool-ul pentru rezumat complet
+    # 5. Tool: rezumat complet (din JSON)
     full_summary = get_summary_by_title(title)
-    if full_summary:
-        final_answer = f"{main_answer}\n\nHere's a detailed summary of *{title}*:\n{full_summary}"
-    else:
-        final_answer = f"{main_answer}\n\n(No detailed summary found for '{title}')"
+    summary_text = f"\n\nHere's a detailed summary of *{title}*:\n{full_summary}" if full_summary else ""
 
-    return final_answer
+    full_response_en = f"{main_answer_en}{summary_text}"
+
+    # 6. Traducem înapoi în limba utilizatorului (dacă nu e engleză)
+    if detected_lang != "en":
+        return translate(full_response_en, target_lang=detected_lang)
+    return full_response_en
+
 
 if __name__ == "__main__":
     print("=== Smart Book Recommender (LLM + RAG) ===\n")
