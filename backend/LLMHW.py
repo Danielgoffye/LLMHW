@@ -8,6 +8,7 @@ from tools.translation_tool import detect_language, translate
 from tools.language_filter_tool import is_offensive
 from tools.tts_tool import speak
 from tools.book_summary_tool import get_summary_by_title, list_titles, normalize_title
+from tools.stt_tool import capture_and_transcribe_vad
 
 # Setup OpenAI
 load_dotenv()
@@ -213,18 +214,35 @@ Respond with a friendly book suggestion. Mention the book title if relevant.'''
 
 
 if __name__ == "__main__":
-    print("=== Smart Book Recommender (LLM + RAG) ===\n")
+    print("=== Smart Book Recommender (LLM + RAG) ===")
+    print("Type 'voice' to dictate your question (auto-stops on silence).")
+    print()
+
     while True:
-        user_input = input("Your question (or 'exit'): ").strip()
+        user_input = input("Your question (or 'exit' | 'voice'): ").strip()
         if user_input.lower() in {"exit", "quit"}:
             break
-        print("\nThinking...\n")
 
-        # resetăm mereu summary la fiecare iterație
+        if user_input.lower() == "voice":
+            try:
+                text = capture_and_transcribe_vad(language_hint=None)
+            except Exception as e:
+                print(f"[Voice] Error: {e}")
+                print("\n" + "="*60 + "\n")
+                continue
+
+            if not text or text == "YOU_SAID_NOTHING":
+                print("[Voice] You said nothing. Returning to menu.")
+                print("\n" + "="*60 + "\n")
+                continue
+
+            print(f"[Voice] You said: {text}")
+            user_input = text
+
+        print("\nThinking...\n")
         result, lang, summary = chat_with_llm(user_input)
         print(result)
 
-        # întreabă de TTS doar dacă summary este un string non-gol
         if isinstance(summary, str) and summary.strip():
             choice = input("Do you want to hear the recommendation? (y/n): ").strip().lower()
             if choice == "y":
