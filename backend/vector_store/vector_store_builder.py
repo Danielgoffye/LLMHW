@@ -1,7 +1,7 @@
 import os
 import json
 import shutil
-from dotenv import load_dotenv
+# ...existing code...
 from openai import OpenAI
 import chromadb
 
@@ -12,11 +12,11 @@ COLLECTION_NAME = "books"
 EMBED_MODEL = "text-embedding-3-small"
 
 # --- Setup secrets ---
-load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
+if api_key:
+    api_key = api_key.strip()
 if not api_key:
     raise ValueError("OPENAI_API_KEY missing in backend/.env")
-
 client = OpenAI(api_key=api_key)
 
 # --- Load data ---
