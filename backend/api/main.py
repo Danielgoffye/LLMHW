@@ -1,6 +1,13 @@
 # backend/api/main.py
+
 from dotenv import load_dotenv, find_dotenv
-load_dotenv(find_dotenv(), override=False)  # încarcă .env din root înainte de orice import
+import os
+# Încarcă explicit backend/.env dacă există, altfel caută .env în root
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+if os.path.exists(env_path):
+    load_dotenv(env_path, override=False)
+else:
+    load_dotenv(find_dotenv(), override=False)
 
 # DEBUG: normalizează și afișează cheie (evită newline-uri din copy/paste)
 import os
@@ -19,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from .routes_chat import router as chat_router
 from .routes_voice import voice_router
 from .routes_tts import tts_router
-from .routes_image import router as image_router  # <-- NEW
+from .routes_image import router as image_router  
 
 def create_app() -> FastAPI:
     app = FastAPI(title="LLMHW API", version="0.1.0")

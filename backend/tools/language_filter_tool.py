@@ -1,74 +1,69 @@
 # backend/tools/language_filter_tool.py
+from __future__ import annotations
 import os
-from typing import Optional
+import re
+from typing import Iterable
 from openai import OpenAI
 
-__all__ = ["is_offensive"]
-
-# Config: dacă vrei fallback la LLM când Moderation e indisponibil
-USE_LLM_FALLBACK = True
-LLM_MODEL = "gpt-4o-mini"              # ieftin și suficient pentru yes/no
-MODERATION_MODEL = "omni-moderation-latest"
-
-_client: Optional[OpenAI] = None
+# --- Helpers ---
 
 def _get_client() -> OpenAI:
-    """Lazy-init OpenAI client; nu îl creăm la import."""
-    global _client
-    if _client is None:
-        raw = os.getenv("OPENAI_API_KEY", "")
-        api_key = raw.strip().strip('"').strip("'")  # protecție newline/ghilimele
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY missing. Set it in .env or environment.")
-        _client = OpenAI(api_key=api_key)
-    return _client
+    key = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY missing. Set it in .env or environment.")
+    return OpenAI(api_key=key)
 
-def _fallback_llm_check(text: str) -> bool:
-    """
-    Fallback prin LLM (chat) în caz că Moderation e indisponibil.
-    Returnează True dacă LLM consideră mesajul ofensator (yes/no).
-    """
-    try:
-        client = _get_client()
-        prompt = (
-            "Classify the message as offensive or not. "
-            "Offensive means rude, harassing, hate, sexual content, threats, self-harm encouragement, etc. "
-            "Reply with exactly one word: 'yes' or 'no'.\n\n"
-            f"Message: {text}"
-        )
-        resp = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-        )
-        ans = (resp.choices[0].message.content or "").strip().lower()
-        return ans.startswith("yes")
-    except Exception as e:
-        # dacă și fallback-ul eșuează, fail-open
-        print(f"[Offensive Fallback Error] {e}")
-        return False
+# set minim, extensibil ușor; păstrăm lower-case
+_BAD_WORDS_RO: tuple[str, ...] = (
+    "prost", "proasta", "proastă", "tâmpit", "idiot", "idiota", "bou",
+    "fraier", "fraiero", "handicapat", "handicapată", "imbecil", "imbecila",
+    "cretin", "cretina", "panarama",
+)
+
+_BAD_WORDS_EN: tuple[str, ...] = (
+    "stupid", "idiot", "moron", "dumb", "retard", "retarded", "jerk",
+    "asshole", "bastard", "loser", "dickhead",
+)
+
+# le combinăm într-o singură expresie cu word boundaries
+_BAD_PATTERNS: list[re.Pattern] = [
+    re.compile(rf"\b{re.escape(w)}\b", re.IGNORECASE) for w in (*_BAD_WORDS_RO, *_BAD_WORDS_EN)
+]
+
+def _contains_blacklist(t: str) -> bool:
+    t = (t or "").lower()
+    for pat in _BAD_PATTERNS:
+        if pat.search(t):
+            return True
+    return False
+
+# --- Public API ---
 
 def is_offensive(text: str) -> bool:
     """
-    Primary: OpenAI Moderation (fără prompt; model specializat).
-    Fallback opțional: LLM yes/no (prompted).
-    Fail-open: dacă ambele pică, returnăm False ca să nu dăm 500.
+    Returnează True dacă mesajul e ofensator.
+    1) Heuristic lexical (rapid, fără API) -> dacă match, întoarce True
+    2) Moderation API (fallback/extra) -> dacă 'flagged', întoarce True
+    În caz de eroare, fail-open (False) dar loghează.
     """
     t = (text or "").strip()
     if not t:
         return False
 
-    # 1) Moderation
+    # 1) blacklist rapid
+    if _contains_blacklist(t):
+        return True
+
+    # 2) Moderation API (dacă cheia e validă)
     try:
         client = _get_client()
-        resp = client.moderations.create(model=MODERATION_MODEL, input=t)
-        return bool(resp.results[0].flagged)
+        resp = client.moderations.create(
+            model="omni-moderation-latest",
+            input=t,
+        )
+        result = resp.results[0]
+        flagged = bool(getattr(result, "flagged", False))
+        return flagged
     except Exception as e:
-        print(f"[Offensive Moderation Error] {e}")
-
-    # 2) LLM fallback (opțional)
-    if USE_LLM_FALLBACK:
-        return _fallback_llm_check(t)
-
-    # 3) Fail-open
-    return False
+        print(f"[Offensive Filter Error] {e}")
+        return False

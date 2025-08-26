@@ -230,12 +230,16 @@ def chat_with_llm(user_input: str) -> Tuple[str, str, Optional[str]]:
     Returnează: (text_de_afisat, limba_detectata, summary_pentru_TTS_ou_None)
     """
     # 1) Limba + ofensiv
+        # 1) Detectăm limba și filtrăm limbaj nepotrivit
     raw_lang = detect_language(user_input)
     detected_lang = enforce_detected_lang(user_input, raw_lang)
 
     if is_offensive(user_input):
         msg = "Your message contains inappropriate language. Please rephrase politely."
-        return (translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg), detected_lang, None
+        out = translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg
+        # >>> return cu 4 valori:
+        return out, detected_lang, None, None
+
 
     # 2) Normalizare la EN (pentru lookup/RAG)
     english_input = user_input if detected_lang == "en" else translate(
@@ -247,13 +251,14 @@ def chat_with_llm(user_input: str) -> Tuple[str, str, Optional[str]]:
     if exact_title:
         full_summary = get_summary_by_title(exact_title)
         if full_summary:
-            resp_en = f"{exact_title}\n\n{full_summary}"
+            full_text_en = f"{exact_title}\n\n{full_summary}"
             if detected_lang != "en":
-                localized_resp = translate(resp_en, target_lang=detected_lang)
+                localized_text = translate(full_text_en, target_lang=detected_lang)
                 localized_summary = translate(full_summary, target_lang=detected_lang)
-                return localized_resp, detected_lang, localized_summary
-            return resp_en, detected_lang, full_summary
-        # dacă nu avem summary, continuăm cu RAG (nu ghicim)
+                return localized_text, detected_lang, localized_summary, exact_title
+            return full_text_en, detected_lang, full_summary, exact_title
+        # dacă nu avem summary, continuăm cu RAG
+
 
     # 4) RAG tematic (extindem ușor interogarea)
     expanded = expand_thematic_query(english_input)
@@ -314,16 +319,23 @@ Respond with a friendly book suggestion. Mention the book title if relevant.'''
                     summary_block = f"\n\nHere's a detailed summary of *{title}*:\n{full_summary}"
 
             final_out = f"{model_answer}{summary_block}"
-            return final_out, detected_lang, localized_summary
+            return final_out, detected_lang, localized_summary, title
+
 
     # Dacă întrebarea NU pare despre cărți/povești, ghidăm utilizatorul
     if not is_question_about_books(english_input):
         msg = "Please ask something related to books or stories."
-        return (translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg), detected_lang, None
-
+        return (
+            translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg,
+            detected_lang,
+            None,
+            None
+        )
     # 5) Fallback clar, fără „ghicit”
-    msg = "Sorry, I don't have information about that. Please ask about a specific book title or describe the kind of story you want."
-    return (translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg), detected_lang, None
+    msg = "Sorry, I don't have information about that..."
+    out = translate(msg, target_lang=detected_lang) if detected_lang != "en" else msg
+    return out, detected_lang, None, None
+
 
 
 # ---------------- CLI util (opțional) ----------------
