@@ -1,49 +1,52 @@
 # backend/api/routes_image.py
 from __future__ import annotations
-import os
-from dataclasses import dataclass
+import os, base64, uuid
+from pathlib import Path
 from typing import Optional
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from openai import OpenAI
 
 router = APIRouter(prefix="/api/image", tags=["image"])
 
+class ImageGenRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=1000)
+    style: Optional[str] = Field(default="vivid")
+    size: Optional[str] = Field(default="1024x1024")
+    n: Optional[int] = Field(default=1, ge=1, le=4)
+
+class ImageResponse(BaseModel):
+    images: list[dict]
+    success: bool
+
 def _get_client() -> OpenAI:
-    raw = os.getenv("OPENAI_API_KEY", "")
-    api_key = raw.strip().strip('"').strip("'")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY missing. Set it in .env or environment.")
-    return OpenAI(api_key=api_key)
+    key = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY missing.")
+    return OpenAI(api_key=key)
 
-class ImageRequest(BaseModel):
-    prompt: str = Field(..., min_length=3, description="What to draw/generate")
-    size: Optional[str] = Field(default="1024x1024", description="256x256 | 512x512 | 1024x1024")
-
-@dataclass
-class ImageResponse:
-    data_url: str
-
-@router.post("/generate")
-def generate_image(payload: ImageRequest):
-    prompt = (payload.prompt or "").strip()
+@router.post("/generate", response_model=ImageResponse)
+def generate_image(req: ImageGenRequest):
+    prompt = req.prompt.strip()
     if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt is empty.")
-
+        raise HTTPException(status_code=400, detail="Empty prompt.")
+    size = req.size if req.size in ["1024x1024","1024x1792","1792x1024"] else "1024x1024"
+    n = max(1, min(4, req.n or 1))
+    client = _get_client()
     try:
-        client = _get_client()
-        # OpenAI Images API – modelul actual recomandat pentru generare
-        resp = client.images.generate(
-            model="gpt-4o-mini",
-            prompt=prompt,
-            size=payload.size or "1024x1024",
-            # OPTIONAL: quality="high",
-            # OPTIONAL: background="transparent",
-            n=1,
-        )
-        b64 = resp.data[0].b64_json
-        data_url = f"data:image/png;base64,{b64}"
-        return {"data_url": data_url}
+        resp = client.images.generate(model="dall-e-2", prompt=prompt, size=size, n=n)
+        images = []
+        out_dir = Path("backend/static/images"); out_dir.mkdir(parents=True, exist_ok=True)
+        for d in resp.data:
+            if getattr(d, "b64_json", None):
+                img_bytes = base64.b64decode(d.b64_json)
+                fn = f"{uuid.uuid4().hex}.png"
+                (out_dir / fn).write_bytes(img_bytes)
+                images.append({"url": f"/static/images/{fn}", "filename": fn})
+            elif getattr(d, "url", None):
+                images.append({"url": d.url, "filename": f"gen_{uuid.uuid4().hex}.png"})
+        return ImageResponse(images=images, success=True)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {e}")
+        print("Image gen error:", e)
+        # Returnează mereu un JSON valid, nu doar HTTPException
+        return ImageResponse(images=[], success=False)

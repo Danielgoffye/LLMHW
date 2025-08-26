@@ -1,11 +1,13 @@
-from pydantic import BaseModel, Field
+# backend/api/schemas.py
+from pydantic import BaseModel
+from typing import Optional
 
 class ChatRequest(BaseModel):
-    text: str = Field(..., min_length=1)
-    locale: str | None = None   # opțional: forțezi limba (ex. "ro", "en")
+    text: str
 
 class ChatResponse(BaseModel):
     answer: str
-    summary: str | None = None
     lang: str
-    tts_available: bool = False
+    summary: Optional[str] = None
+    tts_available: bool = True
+    title: Optional[str] = None
