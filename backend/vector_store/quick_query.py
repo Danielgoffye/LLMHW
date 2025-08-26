@@ -1,10 +1,12 @@
+
 import os
-from dotenv import load_dotenv
 from openai import OpenAI
 import chromadb
-
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# .env este încărcat o singură dată în main.py
+api_key = os.getenv("OPENAI_API_KEY")
+if api_key:
+    api_key = api_key.strip()
+client = OpenAI(api_key=api_key)
 
 PERSIST_PATH = "backend/vector_store/chroma_db"
 COLLECTION_NAME = "books"

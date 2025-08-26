@@ -2,7 +2,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("backend"))
-from vector_store.retriever import BookRetriever
+from backend.vector_store.retriever import BookRetriever
 
 if __name__ == "__main__":
     retriever = BookRetriever()

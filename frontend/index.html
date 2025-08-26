@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Librarian - AI Book Recommender</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .app-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(255,255,255,0.95);
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 { font-size: 2rem; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 1.1rem; }
+
+    .chat-container {
+      height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+
+    .message {
+      margin-bottom: 16px;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .message.user { justify-content: flex-end; }
+    .message.assistant { justify-content: flex-start; }
+
+    .message-bubble {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      line-height: 1.4;
+    }
+
+    .message.user .message-bubble {
+      background: #667eea;
+      color: white;
+    }
+
+    .message.assistant .message-bubble {
+      background: white;
+      border: 1px solid #e9ecef;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .book-summary {
+      background: #f8f9ff;
+      border-left: 4px solid #667eea;
+      padding: 12px;
+      margin-top: 8px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+
+    .book-title {
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 6px;
+    }
+
+    .summary-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .generated-image {
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 12px;
+      border: 1px solid #e9ecef;
+    }
+
+    .input-section {
+      padding: 20px;
+      border-top: 1px solid #e9ecef;
+      background: white;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .input-field {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e9ecef;
+      border-radius: 25px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-field:focus { border-color: #667eea; }
+
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 25px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a6fd8; }
+
+    .btn-secondary {
+      background: #f8f9fa;
+      color: #495057;
+      border: 1px solid #dee2e6;
+    }
+    .btn-secondary:hover { background: #e9ecef; }
+
+    .btn-voice.recording {
+      background: #dc3545;
+      color: white;
+    }
+
+    .controls { display: flex; gap: 12px; justify-content: center; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 12px 0;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+      background: white;
+      border-radius: 18px;
+      width: fit-content;
+      margin: 8px 0;
+    }
+    .typing-dot {
+      width: 8px; height: 8px; background: #667eea; border-radius: 50%;
+      animation: typing 1.4s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-10px); }
+    }
+
+    .audio-player { margin-top: 10px; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const API_BASE = 'http://localhost:8000/api';
+
+    function SmartLibrarian() {
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [isLoading, setIsLoading] = useState(false);
+      const [isRecording, setIsRecording] = useState(false);
+      const [error, setError] = useState(null);
+      const [audioUrl, setAudioUrl] = useState(null);
+
+      const messagesEndRef = useRef(null);
+      const mediaRecorderRef = useRef(null);
+
+      const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      useEffect(scrollToBottom, [messages]);
+
+      const addAssistantMessage = (payload) => setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: payload.answer,
+          summary: payload.summary,
+          lang: payload.lang,
+          tts_available: payload.tts_available,
+          title: payload.title || null,
+          // UI state pentru per-mesaj:
+          imgLoading: false,
+          imgUrl: null
+        }
+      ]);
+
+      const patchMsg = (idx, patch) => {
+        setMessages(prev => prev.map((m, i) => i === idx ? { ...m, ...patch } : m));
+      };
+
+      const handleSend = async () => {
+        if (!input.trim() || isLoading) return;
+
+        setMessages(prev => [...prev, { role: 'user', content: input }]);
+        setInput('');
+        setIsLoading(true);
+        setError(null);
+        setAudioUrl(null);
+
+        try {
+          const res = await fetch(`${API_BASE}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input })
+          });
+          if (!res.ok) throw new Error('Failed to get response');
+          const data = await res.json();
+          addAssistantMessage(data);
+        } catch (e) {
+          console.error(e);
+          setError('Failed to reach the server. Is the backend running?');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      // Voice with auto-stop on silence
+      const handleVoiceInput = async () => {
+        if (isRecording) {
+          try { mediaRecorderRef.current?.stop(); } catch {}
+          setIsRecording(false);
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+          const chunks = [];
+
+          mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+          mediaRecorder.onstop = async () => {
+            try { stream.getTracks().forEach(t => t.stop()); } catch {}
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const fd = new FormData();
+            fd.append('audio', blob, 'recording.webm');
+            try {
+              const res = await fetch(`${API_BASE}/voice/transcribe`, { method: 'POST', body: fd });
+              if (!res.ok) throw new Error('Transcription failed');
+              const data = await res.json();
+              if (data.text && data.text !== 'YOU_SAID_NOTHING') setInput(data.text);
+              else setError('No speech detected.');
+            } catch (err) {
+              console.error(err);
+              setError('Audio transcription error.');
+            } finally {
+              setIsRecording(false);
+            }
+          };
+
+          // Auto-stop on silence (RMS)
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const src = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 2048;
+          src.connect(analyser);
+
+          const buf = new Uint8Array(analyser.fftSize);
+          let silenceStart = null;
+          const silenceThreshold = 0.01;
+          const silenceMillis = 1200;
+          let rafId = null;
+
+          function rms() {
+            analyser.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) {
+              const v = (buf[i] - 128) / 128;
+              sum += v * v;
+            }
+            return Math.sqrt(sum / buf.length);
+          }
+
+          function tick() {
+            const v = rms();
+            const now = performance.now();
+            if (v < silenceThreshold) {
+              if (silenceStart === null) silenceStart = now;
+              else if (now - silenceStart > silenceMillis) {
+                try { mediaRecorder.stop(); } catch {}
+                cancelAnimationFrame(rafId);
+                try { audioCtx.close(); } catch {}
+                return;
+              }
+            } else {
+              silenceStart = null;
+            }
+            rafId = requestAnimationFrame(tick);
+          }
+
+          mediaRecorder.start();
+          setIsRecording(true);
+          silenceStart = null;
+          rafId = requestAnimationFrame(tick);
+        } catch (err) {
+          console.error(err);
+          setError('Microphone permission error.');
+        }
+      };
+
+      const handleTTS = async (text, lang) => {
+        try {
+          const res = await fetch(`${API_BASE}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, lang })
+          });
+          if (!res.ok) throw new Error('TTS failed');
+          const data = await res.json();
+          setAudioUrl(`http://localhost:8000${data.url}`);
+        } catch (err) {
+          console.error(err);
+          setError('Failed to generate audio.');
+        }
+      };
+
+      const generateImageForMessage = async (idx) => {
+        const msg = messages[idx];
+        if (!msg || msg.imgLoading) return;
+
+        // Prompt: include titlu + rezumat
+        const title = msg.title || 'carte';
+        const summary = (msg.summary || '').trim();
+        if (!summary) {
+          setError('No summary available to generate a cover.');
+          return;
+        }
+
+        const prompt = `Generează o copertă de carte pentru "${title}", folosind următorul rezumat:\n${summary}`;
+        patchMsg(idx, { imgLoading: true, imgUrl: null });
+
+        try {
+          const res = await fetch(`${API_BASE}/image/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt,
+              style: 'vivid',
+              size: '1024x1024',
+              n: 1
+            })
+          });
+          if (!res.ok) throw new Error('Image generation failed');
+          const data = await res.json();
+          const url =
+            data?.success && data?.images?.[0]?.url
+              ? (data.images[0].url.startsWith('http')
+                    ? data.images[0].url
+                    : `http://localhost:8000${data.images[0].url}`)
+              : null;
+          patchMsg(idx, { imgUrl: url });
+        } catch (err) {
+          console.error(err);
+          setError('Image generation error. Try again.');
+        } finally {
+          patchMsg(idx, { imgLoading: false });
+        }
+      };
+
+      return (
+        <div className="app-container">
+          <div className="header">
+            <h1>📚 Smart Librarian</h1>
+            <p>Your AI-powered book recommendation assistant</p>
+          </div>
+
+          <div className="chat-container">
+            {messages.length === 0 ? (
+              <div style={{textAlign: 'center', color: '#6c757d', padding: '40px 20px'}}>
+                <div style={{fontSize: '3rem', marginBottom: '16px'}}>📖</div>
+                <p>Welcome! Tell me what kind of stories you enjoy, or ask about specific books.</p>
+                <p style={{opacity:.8, marginTop: 6}}>Try: “I want a book about friendship and magic” or “What is 1984?”</p>
+              </div>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={i} className={`message ${msg.role}`}>
+                  <div className="message-bubble">
+                    {msg.content}
+                    {msg.summary && (
+                      <div className="book-summary">
+                        <div className="book-title">
+                          📖 {msg.title ? `Summary for “${msg.title}”` : 'Detailed Summary'}
+                        </div>
+                        {msg.summary}
+                        <div className="summary-actions">
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleTTS(msg.summary, msg.lang || 'en')}
+                          >
+                            🔊 Listen to Summary
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => generateImageForMessage(i)}
+                            disabled={msg.imgLoading}
+                          >
+                            {msg.imgLoading ? '⏳ Generating...' : '🎨 Generate cover'}
+                          </button>
+                        </div>
+                        {msg.imgUrl && (
+                          <img className="generated-image" src={msg.imgUrl} alt="Generated cover"/>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {isLoading && (
+              <div className="typing-indicator">
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+              </div>
+            )}
+
+            {error && <div className="error">⚠️ {error}</div>}
+
+            {audioUrl && (
+              <div style={{paddingTop: 6}}>
+                <audio controls autoPlay className="audio-player">
+                  <source src={audioUrl} type="audio/mpeg" />
+                  Your browser does not support the audio element.
+                </audio>
+              </div>
+            )}
+
+            <div ref={messagesEndRef}/>
+          </div>
+
+          <div className="input-section">
+            <div className="input-row">
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ask about books or describe what you'd like to read..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' ? handleSend() : null}
+                disabled={isLoading}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading}
+              >
+                {isLoading ? <div className="spinner"/> : '📤 Send'}
+              </button>
+            </div>
+
+            <div className="controls">
+              <button
+                className={`btn btn-secondary btn-voice ${isRecording ? 'recording' : ''}`}
+                onClick={handleVoiceInput}
+                disabled={isLoading}
+              >
+                {isRecording ? '⏹️ Stop' : '🎤 Voice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<SmartLibrarian />, document.getElementById('root'));
+  </script>
+</body>
+</html>
