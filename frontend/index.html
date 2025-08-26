@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Librarian - AI Book Recommender</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #root {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .app-header {
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%);
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .app-title {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .app-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .chat-container {
+            height: 500px;
+            overflow-y: auto;
+            padding: 30px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .message-user {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .message-assistant {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+            line-height: 1.6;
+        }
+
+        .message-user .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message-assistant .message-bubble {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-label {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+            padding: 0 20px;
+        }
+
+        .message-assistant .message-label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .input-container {
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-field::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary.recording {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(245, 87, 108, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(245, 87, 108, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(245, 87, 108, 0);
+            }
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .tts-btn {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            box-shadow: 0 5px 15px rgba(250, 112, 154, 0.4);
+        }
+
+        .tts-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(250, 112, 154, 0.6);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            width: fit-content;
+            margin-bottom: 20px;
+        }
+
+        .typing-dot {
+            width: 10px;
+            height: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            padding: 60px 20px;
+            font-size: 1.2rem;
+            line-height: 1.8;
+        }
+
+        .welcome-emoji {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg); }
+            75% { transform: rotate(10deg); }
+        }
+
+        .book-summary {
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 10px;
+        }
+
+        .book-title {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            background: rgba(245, 87, 108, 0.2);
+            border: 1px solid rgba(245, 87, 108, 0.5);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px;
+            text-align: center;
+        }
+
+        .audio-player {
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .app-title {
+                font-size: 2rem;
+            }
+            
+            .message-bubble {
+                max-width: 85%;
+            }
+            
+            .controls-row {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const API_BASE = 'http://localhost:8000/api';
+
+        function SmartLibrarian() {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [isRecording, setIsRecording] = useState(false);
+            const [audioUrl, setAudioUrl] = useState(null);
+            const [error, setError] = useState(null);
+            
+            const messagesEndRef = useRef(null);
+            const mediaRecorderRef = useRef(null);
+            const audioChunksRef = useRef([]);
+
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            };
+
+            useEffect(scrollToBottom, [messages]);
+
+            const handleSend = async () => {
+                if (!input.trim() || isLoading) return;
+
+                const userMessage = { role: 'user', content: input };
+                setMessages(prev => [...prev, userMessage]);
+                setInput('');
+                setIsLoading(true);
+                setError(null);
+                setAudioUrl(null);
+
+                try {
+                    const response = await fetch(`${API_BASE}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: input })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to get response');
+
+                    const data = await response.json();
+                    
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: data.answer,
+                        summary: data.summary,
+                        lang: data.lang,
+                        tts_available: data.tts_available
+                    }]);
+                } catch (err) {
+                    setError('Failed to communicate with the server. Please make sure the backend is running.');
+                    console.error(err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleVoiceInput = async () => {
+                if (isRecording) {
+                    if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                    return;
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorderRef.current = mediaRecorder;
+                    audioChunksRef.current = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        audioChunksRef.current.push(event.data);
+                    }
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                    try {
+                        stream.getTracks().forEach(t => t.stop());
+                    } catch {}
+                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recording.webm');
+
+                    try {
+                        const response = await fetch(`${API_BASE}/voice/transcribe`, {
+                        method: 'POST',
+                        body: formData
+                        });
+                        if (!response.ok) throw new Error('Transcription failed');
+                        const data = await response.json();
+                        if (data.text && data.text !== 'YOU_SAID_NOTHING') {
+                        setInput(data.text);
+                        } else {
+                        setError('You said nothing.');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        setError('Failed to transcribe audio. Please try again.');
+                    } finally {
+                        setIsRecording(false);
+                    }
+                    };
+
+                    // === Auto-stop on silence (client-side) ===
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const srcNode = audioCtx.createMediaStreamSource(stream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 2048;
+                    srcNode.connect(analyser);
+
+                    const dataArray = new Uint8Array(analyser.fftSize);
+                    let silenceStart = null;
+                    const silenceThreshold = 0.01;   // ~0..1 (RMS) – ajustează după microfon
+                    const silenceMillis = 1200;      // cât timp de liniște până la auto-stop
+                    let rafId = null;
+
+                    function getRMS() {
+                    analyser.getByteTimeDomainData(dataArray);
+                    // RMS simplu din time-domain (0..255), normalizat la (-1..1)
+                    let sumSquares = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        const v = (dataArray[i] - 128) / 128;
+                        sumSquares += v * v;
+                    }
+                    return Math.sqrt(sumSquares / dataArray.length);
+                    }
+
+                    function tick() {
+                    const rms = getRMS();
+                    const now = performance.now();
+                    if (rms < silenceThreshold) {
+                        if (silenceStart === null) silenceStart = now;
+                        else if (now - silenceStart > silenceMillis) {
+                        try {
+                            mediaRecorder.stop();
+                        } catch {}
+                        cancelAnimationFrame(rafId);
+                        try { audioCtx.close(); } catch {}
+                        return;
+                        }
+                    } else {
+                        silenceStart = null;
+                    }
+                    rafId = requestAnimationFrame(tick);
+                    }
+
+                    mediaRecorder.start();
+                    setIsRecording(true);
+                    silenceStart = null;
+                    rafId = requestAnimationFrame(tick);
+
+                } catch (err) {
+                    console.error(err);
+                    setError('Failed to access microphone. Please check permissions.');
+                }
+                };
+
+
+            const handleTTS = async (text, lang) => {
+                setIsLoading(true);
+                try {
+                    const response = await fetch(`${API_BASE}/tts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text, lang })
+                    });
+
+                    if (!response.ok) throw new Error('TTS failed');
+
+                    const data = await response.json();
+                    setAudioUrl(`http://localhost:8000${data.url}`);
+                } catch (err) {
+                    setError('Failed to generate audio. Please try again.');
+                    console.error(err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="app-container">
+                    <div className="app-header">
+                        <h1 className="app-title">📚 Smart Librarian</h1>
+                        <p className="app-subtitle">Your AI-powered book recommendation assistant</p>
+                    </div>
+
+                    <div className="chat-container">
+                        {messages.length === 0 ? (
+                            <div className="welcome-message">
+                                <div className="welcome-emoji">📖</div>
+                                <p>Welcome! I'm your personal book recommender.</p>
+                                <p>Tell me what kind of stories you enjoy, or ask about specific books!</p>
+                                <p style={{fontSize: '1rem', marginTop: '20px', opacity: 0.8}}>
+                                    Try: "I want a book about friendship and magic" or "What is 1984?"
+                                </p>
+                            </div>
+                        ) : (
+                            messages.map((msg, idx) => (
+                                <div key={idx} className={`message message-${msg.role}`}>
+                                    <div>
+                                        <div className="message-label">
+                                            {msg.role === 'user' ? 'You' : '📚 Librarian'}
+                                        </div>
+                                        <div className="message-bubble">
+                                            {msg.content}
+                                            {msg.summary && (
+                                                <div className="book-summary">
+                                                    <div className="book-title">📖 Detailed Summary</div>
+                                                    {msg.summary}
+                                                </div>
+                                            )}
+                                            {msg.tts_available && (
+                                                <button 
+                                                    className="btn tts-btn"
+                                                    onClick={() => handleTTS(msg.summary || msg.content, msg.lang)}
+                                                    disabled={isLoading}
+                                                >
+                                                    🔊 Listen to Summary
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        
+                        {isLoading && (
+                            <div className="typing-indicator">
+                                <div className="typing-dot"></div>
+                                <div className="typing-dot"></div>
+                                <div className="typing-dot"></div>
+                            </div>
+                        )}
+                        
+                        {error && (
+                            <div className="error-message">
+                                ⚠️ {error}
+                            </div>
+                        )}
+
+                        {audioUrl && (
+                            <div style={{padding: '20px'}}>
+                                <audio controls autoPlay className="audio-player">
+                                    <source src={audioUrl} type="audio/mpeg" />
+                                    Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                        )}
+                        
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="input-container">
+                        <div className="input-wrapper">
+                            <input
+                                type="text"
+                                className="input-field"
+                                placeholder="Ask about books or describe what you'd like to read..."
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                disabled={isLoading}
+                            />
+                            <button 
+                                className="btn btn-primary"
+                                onClick={handleSend}
+                                disabled={!input.trim() || isLoading}
+                            >
+                                {isLoading ? <div className="loading-spinner" /> : '📤 Send'}
+                            </button>
+                        </div>
+                        <div className="controls-row">
+                            <button 
+                                className={`btn btn-secondary ${isRecording ? 'recording' : ''}`}
+                                onClick={handleVoiceInput}
+                                disabled={isLoading}
+                            >
+                                {isRecording ? '⏹️ Stop Recording' : '🎤 Voice Input'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<SmartLibrarian />, document.getElementById('root'));
+    </script>
+</body>
+</html>

@@ -1,66 +1,84 @@
+# backend/vector_store/retriever.py
+from __future__ import annotations
+
 import os
-from typing import List, Dict, Any
+from typing import List, Optional
+
+# .env este încărcat o singură dată în main.py
+
+from openai import OpenAI
+import chromadb
+from chromadb.config import Settings
+
+# Dacă tu ai deja un dataclass BookMatch, păstrează-l.
 from dataclasses import dataclass
 
-import chromadb
-from dotenv import load_dotenv
-from openai import OpenAI
-
-
 @dataclass
-class RetrievalItem:
+class BookMatch:
     title: str
     summary: str
     distance: float
 
+def _get_client() -> OpenAI:
+    """Lazy-init OpenAI client (NU la import)."""
+    raw = os.getenv("OPENAI_API_KEY", "")
+    api_key = raw.strip().strip('"').strip("'")  # <- curățăm newline/spații/ghilimele
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY missing. Set it in your project .env or as environment variable."
+        )
+    return OpenAI(api_key=api_key)
+
+
+def _embed_texts(texts: List[str]) -> List[List[float]]:
+    """Encapsulează cererea de embeddings (text-embedding-3-small)."""
+    client = _get_client()
+    resp = client.embeddings.create(model="text-embedding-3-small", input=texts)
+    # OpenAI returnează embeddings în ordinea input-ului
+    return [d.embedding for d in resp.data]
 
 class BookRetriever:
     def __init__(
         self,
-        persist_path: str = "backend/vector_store/chroma_db",
+        persist_dir: str = "backend/vector_store/chroma_db",
         collection_name: str = "books",
-        embed_model: str = "text-embedding-3-small",
-    ):
-        load_dotenv()
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY missing in backend/.env")
-
-        self._client = OpenAI(api_key=api_key)
-        self._embed_model = embed_model
-
-        self._chroma = chromadb.PersistentClient(path=persist_path)
-        try:
-            self._col = self._chroma.get_collection(collection_name)
-        except Exception as e:
-            raise RuntimeError(
-                f"Collection '{collection_name}' not found at {persist_path}. "
-                f"Build it first with vector_store_builder.py."
-            ) from e
-
-    def _embed(self, text: str) -> List[float]:
-        return self._client.embeddings.create(
-            model=self._embed_model, input=text
-        ).data[0].embedding
-
-    def query(self, question: str, top_k: int = 5) -> List[RetrievalItem]:
-        q_emb = self._embed(question)
-        res = self._col.query(
-            query_embeddings=[q_emb],
-            n_results=top_k,
-            include=["documents", "metadatas", "distances"],
+    ) -> None:
+        # NU atinge OPENAI aici; doar Chroma
+        self.client = chromadb.PersistentClient(
+            path=persist_dir,
+            settings=Settings(allow_reset=False),
         )
-        items: List[RetrievalItem] = []
-        docs = res.get("documents", [[]])[0]
-        metas = res.get("metadatas", [[]])[0]
-        dists = res.get("distances", [[]])[0]
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name, metadata={"hnsw:space": "cosine"}
+        )
 
-        for doc, meta, dist in zip(docs, metas, dists):
-            items.append(
-                RetrievalItem(
-                    title=meta.get("title", "Unknown"),
-                    summary=doc,
-                    distance=float(dist),
-                )
-            )
-        return items
+    def query(self, text: str, top_k: int = 1) -> List[BookMatch]:
+        text = (text or "").strip()
+        if not text:
+            return []
+
+        # Embedding doar acum (cheia trebuie să existe DOAR aici)
+        query_emb = _embed_texts([text])[0]
+
+        res = self.collection.query(
+            query_embeddings=[query_emb],
+            n_results=max(1, int(top_k)),
+            include=["metadatas", "distances", "documents"],  # documents dacă ții summary acolo
+        )
+
+        matches: List[BookMatch] = []
+
+        # Chroma returnează liste imbricate
+        ids = (res.get("ids") or [[]])[0]
+        dists = (res.get("distances") or [[]])[0]
+        metas = (res.get("metadatas") or [[]])[0]
+        docs = (res.get("documents") or [[]])[0]
+
+        for i in range(len(ids)):
+            meta = metas[i] if i < len(metas) and metas[i] else {}
+            title = meta.get("title") or (docs[i][:80] if i < len(docs) else "Unknown")
+            summary = meta.get("summary") or (docs[i] if i < len(docs) else "")
+            distance = float(dists[i]) if i < len(dists) else 0.0
+            matches.append(BookMatch(title=title, summary=summary, distance=distance))
+
+        return matches
