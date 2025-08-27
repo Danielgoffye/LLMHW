@@ -100,7 +100,6 @@ This project was developed as part of the "Essentials of LLM" assignment. It dem
 - Internet connection
 
 ## Notes
-- All secrets must be kept in `.env` (never commit this file!)
 - For best results, use a valid OpenAI key with access to all required models.
 - The vector store (ChromaDB) is persistent in `backend/vector_store/chroma_db`.
 - You can extend the book summaries in `backend/data/book_summaries.json`.
